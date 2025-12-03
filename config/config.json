@@ -1,0 +1,33 @@
+{
+  "name": "customConnector",
+  "type": "customConnector",
+  "authDetails": {
+    "username": "anyuser",
+    "password": "anypassword",
+    "authorizationType": "BasicAuth"
+  },
+  "configuration": {
+    "api": {
+      "contentUrl": "https://jsonplaceholder.typicode.com/posts",
+      "method": "GET"
+    },
+    "pagination": {
+      "limit": "_limit",
+      "offset": "_start"
+    },
+    "lookupFields": {
+      "rootField": "",
+      "id": "id",
+      "title": "title",
+      "content": "body",
+      "url": "",
+      "doc_created_on": "",
+      "doc_updated_on": "",
+      "type": "",
+      "sys_racl": "",
+      "sys_file_type": "",
+      "html": ""
+    },
+    "hasMore": ""
+  }
+}
