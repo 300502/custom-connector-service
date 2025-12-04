@@ -35,34 +35,68 @@
 // }
 
 const checkAuthorized = async function (req, res, next) {
-    console.log('\n' + '='.repeat(60));
-    console.log('🔍 KORE.AI AUTH DEBUG');
-    console.log('='.repeat(60));
-    
-    const authHeader = req.headers.authorization || req.headers.Authorization;
-    
-    console.log('📨 Request URL:', req.url);
-    console.log('🔑 Auth Header Received:', authHeader);
-    console.log('📏 Length:', authHeader ? authHeader.length : 'null');
-    
-    if (authHeader) {
-        console.log('🔍 First 20 chars:', authHeader.substring(0, 20));
-        console.log('🔍 Char codes:');
-        for (let i = 0; i < Math.min(authHeader.length, 20); i++) {
-            console.log(`  [${i}] "${authHeader[i]}" = ${authHeader.charCodeAt(i)}`);
+    try {
+        console.log('\n' + '='.repeat(60));
+        console.log('🔐 KORE.AI AUTH DEBUG');
+        console.log('='.repeat(60));
+        
+        let authHeader = req.headers.authorization || req.headers.Authorization;
+        console.log('📨 Raw auth header:', `"${authHeader}"`);
+        console.log('📏 Raw length:', authHeader ? authHeader.length : 'null');
+        
+        // Mostrar caracteres especiales
+        if (authHeader) {
+            console.log('🔍 Character analysis:');
+            for (let i = 0; i < authHeader.length; i++) {
+                const char = authHeader[i];
+                const code = authHeader.charCodeAt(i);
+                console.log(`  [${i}] "${char === ' ' ? 'SPACE' : char}" = ${code} ${code === 32 ? '(SPACE)' : ''}`);
+            }
         }
+        
+        // TRIM el header (eliminar espacios al inicio y final)
+        if (authHeader) {
+            const beforeTrim = authHeader;
+            authHeader = authHeader.trim();
+            console.log('✂️ After trim:', `"${authHeader}"`);
+            console.log('📏 After trim length:', authHeader.length);
+            
+            if (beforeTrim !== authHeader) {
+                console.log('⚠️ Header needed trimming!');
+                console.log('Before:', JSON.stringify(beforeTrim));
+                console.log('After:', JSON.stringify(authHeader));
+            }
+        }
+        
+        const expected = 'cHJ1ZWJhMTIzNDU=';
+        console.log('🎯 Expected:', `"${expected}"`);
+        console.log('📏 Expected length:', expected.length);
+        
+        // Comparar después del trim
+        const isValid = authHeader === expected;
+        console.log('✅ Match after trim:', isValid);
+        
+        if (isValid) {
+            console.log('🎉 AUTHENTICATION SUCCESSFUL!');
+            return next();
+        }
+        
+        console.log('❌ AUTHENTICATION FAILED');
+        return res.status(403).json({ 
+            error: 'Authentication Failed',
+            hint: 'Expected: cHJ1ZWJhMTIzNDU= (without trailing spaces)',
+            debug: {
+                received: authHeader,
+                receivedLength: authHeader ? authHeader.length : 0,
+                expected: expected,
+                expectedLength: expected.length
+            }
+        });
+        
+    } catch (err) {
+        console.log('Auth error:', err);
+        return res.status(403).json({ error: 'Authentication Failed - Server Error' });
     }
-    
-    // TEMPORAL: ACEPTAR CUALQUIER VALOR NO VACÍO
-    if (authHeader && authHeader.trim() !== '') {
-        console.log('✅ Accepting any non-empty auth header for now');
-        return next();
-    }
-    
-    console.log('❌ No auth header or empty');
-    return res.status(403).json({ error: 'Authentication Failed' });
 }
 
-module.exports = {
-    checkAuthorized
-}
+module.exports = { checkAuthorized };
