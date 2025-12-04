@@ -33,63 +33,59 @@
 //         return res.status(403).json({ error: 'Forbidden: Authorization error' });
 //     }
 // }
-
 const checkAuthorized = async function (req, res, next) {
     try {
         console.log('\n' + '='.repeat(60));
         console.log('🔐 KORE.AI AUTH DEBUG');
         console.log('='.repeat(60));
         
-        let authHeader = req.headers.authorization || req.headers.Authorization;
+        const authHeader = req.headers.authorization || req.headers.Authorization;
         console.log('📨 Raw auth header:', `"${authHeader}"`);
-        console.log('📏 Raw length:', authHeader ? authHeader.length : 'null');
         
-        // Mostrar caracteres especiales
-        if (authHeader) {
-            console.log('🔍 Character analysis:');
-            for (let i = 0; i < authHeader.length; i++) {
-                const char = authHeader[i];
-                const code = authHeader.charCodeAt(i);
-                console.log(`  [${i}] "${char === ' ' ? 'SPACE' : char}" = ${code} ${code === 32 ? '(SPACE)' : ''}`);
-            }
+        if (!authHeader) {
+            console.log('❌ No auth header');
+            return res.status(403).json({ error: 'Authentication Failed' });
         }
         
-        // TRIM el header (eliminar espacios al inicio y final)
-        if (authHeader) {
-            const beforeTrim = authHeader;
-            authHeader = authHeader.trim();
-            console.log('✂️ After trim:', `"${authHeader}"`);
-            console.log('📏 After trim length:', authHeader.length);
-            
-            if (beforeTrim !== authHeader) {
-                console.log('⚠️ Header needed trimming!');
-                console.log('Before:', JSON.stringify(beforeTrim));
-                console.log('After:', JSON.stringify(authHeader));
-            }
+        // Kore.ai hace DOBLE Base64 encoding:
+        // 1. "prueba12345" -> "cHJ1ZWJhMTIzNDU="
+        // 2. "cHJ1ZWJhMTIzNDU=" -> "Y0hKMVpXSmhNVEl6TkRVPQ=="
+        
+        // Decodificar primera vez
+        const decodedOnce = Buffer.from(authHeader, 'base64').toString();
+        console.log('🔓 First decode:', `"${decodedOnce}"`);
+        
+        // Intentar decodificar segunda vez
+        let finalValue = decodedOnce;
+        try {
+            // Si es Base64 válido, decodificar segunda vez
+            const decodedTwice = Buffer.from(decodedOnce, 'base64').toString();
+            console.log('🔓 Second decode:', `"${decodedTwice}"`);
+            finalValue = decodedTwice;
+        } catch (err) {
+            // Si no es Base64 válido, usar el primer decode
+            console.log('📝 Not double-encoded, using first decode');
         }
         
-        const expected = 'cHJ1ZWJhMTIzNDU=';
+        // Verificar si coincide con el valor esperado
+        const expected = 'prueba12345';
         console.log('🎯 Expected:', `"${expected}"`);
-        console.log('📏 Expected length:', expected.length);
+        console.log('🎯 Received:', `"${finalValue}"`);
         
-        // Comparar después del trim
-        const isValid = authHeader === expected;
-        console.log('✅ Match after trim:', isValid);
-        
-        if (isValid) {
-            console.log('🎉 AUTHENTICATION SUCCESSFUL!');
+        if (finalValue === expected) {
+            console.log('✅ AUTHENTICATION SUCCESSFUL!');
+            console.log('✅'.repeat(30));
             return next();
         }
         
         console.log('❌ AUTHENTICATION FAILED');
+        console.log('❌'.repeat(30));
         return res.status(403).json({ 
             error: 'Authentication Failed',
-            hint: 'Expected: cHJ1ZWJhMTIzNDU= (without trailing spaces)',
             debug: {
                 received: authHeader,
-                receivedLength: authHeader ? authHeader.length : 0,
-                expected: expected,
-                expectedLength: expected.length
+                decoded: finalValue,
+                expected: expected
             }
         });
         
