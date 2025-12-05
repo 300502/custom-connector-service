@@ -1,31 +1,31 @@
 {
-  "name": "customConnector",
+  "name": "BlackboardLearnConnector",
   "type": "customConnector",
   "authDetails": {
-    "username": "anyuser",
-    "password": "anypassword",
-    "authorizationType": "BasicAuth"
+    "username": "",
+    "password": "",
+    "authorizationType": "Bearer"
   },
   "configuration": {
     "api": {
-      "contentUrl": "https://jsonplaceholder.typicode.com/posts",
+      "contentUrl": "https://campusprima-test.blackboard.com/learn/api/public/v1/courses/_304_1/contents",
       "method": "GET"
     },
     "pagination": {
-      "limit": "_limit",
-      "offset": "_start"
+      "limit": "limit",
+      "offset": "offset"
     },
     "lookupFields": {
-      "rootField": "",
+      "rootField": "results",
       "id": "id",
       "title": "title",
-      "content": "body",
-      "url": "",
-      "doc_created_on": "",
-      "doc_updated_on": "",
-      "type": "",
+      "content": "description",
+      "url": "links[0].href",
+      "doc_created_on": "created",
+      "doc_updated_on": "modified",
+      "type": "contentHandler.id",
       "sys_racl": "",
-      "sys_file_type": "",
+      "sys_file_type": "contentHandler.id",
       "html": ""
     },
     "hasMore": ""
