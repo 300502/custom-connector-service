@@ -23,6 +23,20 @@ app.get('/', (req, res) => {
     res.send('This Server Contains Custom Connector Service Endpoints')
 })
 
+
+app.get('/health', (req, res) => {
+    const estadoToken = tokenManager.obtenerEstadoToken();
+    
+    res.json({
+        status: 'healthy',
+        service: 'Blackboard Custom Connector',
+        blackboardAuth: estadoToken.tieneToken ? 'configured' : 'not_configured',
+        tokenExpiresIn: `${estadoToken.expiraEnSegundos} seconds`,
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime()
+    });
+});
+
 //route to content api 
 const content_endpoint = require('./routes/content.route.js')
 app.use(content_endpoint)

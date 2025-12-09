@@ -20,14 +20,14 @@
       "id": "id",
       "title": "title",
       "content": "description",
-      "url": "links[0].href",
+      "url": "", 
       "doc_created_on": "created",
       "doc_updated_on": "modified",
       "type": "contentHandler.id",
-      "sys_racl": "",
+      "sys_racl": "", 
       "sys_file_type": "contentHandler.id",
       "html": ""
     },
-    "hasMore": ""
+    "hasMore": ""  
   }
 }

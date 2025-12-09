@@ -1,247 +1,124 @@
-// const { readConfig } = require('../utils/readConfig')
-// const { default: axios } = require("axios")
-// const fs = require('fs');
-// const path = require('path')
-// const { formatData } = require('../utils/formatData')
-
-// const get_content_controller = async (req, res) => {
-//     try {
-//         if (!req?.query?.limit || !req?.query?.offset) return res.status(400).json({ error: 'The request parameters is missing.' })
-
-//         const limit = req?.query?.limit
-//         const offset = req?.query?.offset
-
-//         const config = await readConfig()
-
-
-//         const apiUrl = config?.configuration?.api?.contentUrl
-//         const method = config?.configuration?.api?.method
-
-//         const credentials = {
-//             username: config?.authDetails?.username,
-//             password: config?.authDetails?.password
-//         };
-
-//         const accessToken = Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
-
-//         const headers = {
-//             "Authorization": `Basic ${accessToken}`,
-//             "Accept": "application/json",
-//             "Content-Type": "application/json"
-//         };
-
-//         const limitKey = config?.configuration?.pagination?.limit
-//         const offsetKey = config?.configuration?.pagination?.offset
-
-//         let params = {}
-//         params[limitKey] = limit
-//         params[offsetKey] = offset
-
-//         const reqOptions = {
-//             url: apiUrl,
-//             method: method,
-//             headers: headers,
-//             params: params
-//         }
-
-
-//         //  Uncomment this as per requirement
-//         const response = await axios(reqOptions)
-//         let data = await formatData(response?.data, config?.configuration?.lookupFields)
-//         const hasMoreKey = config?.configuration?.hasMore
-//         //this check is only for service now api
-//         const headerLinkData = response?.headers?.link
-//         data['isContentAvailable'] = (headerLinkData && headerLinkData.includes(hasMoreKey)) ?? JSON.stringify(data).includes(hasMoreKey);
-//         return res.json(data)
-
-
-//         // For testing purposes: Read from a sample file
-//         const filePath = limit === "1"
-//             ? path.join(__dirname, '../TestFiles/sampleDoc.txt')
-//             : path.join(__dirname, '../TestFiles/sampleDocs.txt');
-//         fs.readFile(filePath, 'utf8', (err, data) => {
-//             if (err) {
-//                 return res.status(500).json({ error: 'Failed to read the file.' });
-//             }
-//             try {
-//                 const jsonData = JSON.parse(data);
-//                 return res.json(jsonData);
-//             } catch (parseError) {
-//                 // Handle JSON parse errors
-//                 return res.status(500).json({ error: 'Failed to parse the file content.' });
-//             }
-//         });
-
-//     } catch (error) {
-//         console.error('Error fetching data ', error.message)
-//         return res.status(500).json({ error: error.message || "Failed to fetch data" })
-
-//     }
-
-// }
-
-// module.exports = { get_content_controller }
-
-
-
-const { readConfig } = require('../utils/readConfig')
-const { default: axios } = require("axios")
-const fs = require('fs');
-const path = require('path')
-const { formatData } = require('../utils/formatData')
+const { readConfig } = require('../utils/readConfig');
+const { default: axios } = require("axios");
+const { formatData } = require('../utils/formatData');
+const tokenManager = require('../utils/tokenManager');
 
 const get_content_controller = async (req, res) => {
     try {
-        console.log('\n' + '='.repeat(60));
-        console.log('🎯 GET CONTENT REQUEST FROM KORE.AI');
-        console.log('='.repeat(60));
+        console.log('📥 Solicitud recibida de Kore.ai');
         
-        // Si el middleware pasó aquí, Kore.ai YA está autenticado
-        console.log('✅ Kore.ai authentication already verified by middleware');
+        // Validar parámetros
+        const limite = parseInt(req?.query?.limit) || 30;
+        const desplazamiento = parseInt(req?.query?.offset) || 0;
         
         if (!req?.query?.limit || !req?.query?.offset) {
-            console.log('❌ Missing parameters');
-            return res.status(400).json({ error: 'The request parameters is missing.' })
+            return res.status(400).json({ error: 'Parámetros limit y offset son obligatorios' });
         }
-
-        const limit = req?.query?.limit
-        const offset = req?.query?.offset
-
-        console.log('📊 Query params:', { limit, offset });
-
-        const config = await readConfig()
-        console.log('📄 Config loaded:', config?.name);
         
-        const apiUrl = config?.configuration?.api?.contentUrl
-        const method = config?.configuration?.api?.method
-
-        console.log('🔗 Blackboard API URL:', apiUrl);
-        console.log('📝 Method:', method);
+        // Cargar configuración
+        const config = await readConfig();
         
-        // ============================================
-        // AUTENTICACIÓN CON BLACKBOARD
-        // ============================================
-        // OPCIÓN 1: Token fijo en .env (RECOMENDADO)
-        const blackboardToken = process.env.BLACKBOARD_TOKEN || '';
-        
-        // OPCIÓN 2: Si quieres pasarlo desde Kore.ai en otro header
-        // const blackboardToken = req.headers['x-blackboard-token'] || '';
-        
-        if (!blackboardToken) {
-            console.log('❌ No Blackboard token configured');
+        // Obtener token válido (se renueva automáticamente si es necesario)
+        let tokenBlackboard;
+        try {
+            tokenBlackboard = await tokenManager.getValidToken();
+        } catch (tokenError) {
+            console.error('❌ Error con token de Blackboard:', tokenError.message);
             return res.status(500).json({ 
-                error: 'Server configuration error',
-                details: 'Blackboard token not configured in environment variables' 
+                error: 'Error de autenticación con Blackboard',
+                detalle: 'No se pudo obtener token de acceso'
             });
         }
         
-        console.log('🔑 Blackboard token available');
-        
-        // Headers para Blackboard
-        const headers = {
-            "Authorization": `Bearer ${blackboardToken}`,
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-        };
-
-        const limitKey = config?.configuration?.pagination?.limit
-        const offsetKey = config?.configuration?.pagination?.offset
-
-        let params = {}
-        params[limitKey] = limit
-        params[offsetKey] = offset
-
-        console.log('📋 Request params:', params);
-        
-        const reqOptions = {
-            url: apiUrl,
-            method: method,
-            headers: headers,
-            params: params,
+        // Configurar llamada a API de Blackboard con el token
+        const opcionesRequest = {
+            url: config?.configuration?.api?.contentUrl,
+            method: config?.configuration?.api?.method,
+            headers: {
+                "Authorization": `Bearer ${tokenBlackboard}`,
+                "Accept": "application/json"
+            },
+            params: {
+                limit: limite,
+                offset: desplazamiento
+            },
             timeout: 30000
-        }
-
-        console.log('⏳ Making request to Blackboard...');
+        };
         
+        console.log(`🔗 Conectando con Blackboard (${limite} registros desde ${desplazamiento})`);
+        
+        // Ejecutar llamada a API de Blackboard
+        let respuestaBlackboard;
         try {
-            // LLAMADA REAL A BLACKBOARD API
-            const response = await axios(reqOptions)
-            
-            console.log('✅ Blackboard response status:', response.status);
-            console.log('📦 Data received:', response.data?.results?.length || 0, 'items');
-            
-            // Formatear datos según la configuración
-            let data = await formatData(response?.data, config?.configuration?.lookupFields)
-            
-            // Para Blackboard, marcamos como disponible si hay datos
-            if (data && typeof data === 'object') {
-                data['isContentAvailable'] = true;
-            }
-            
-            console.log('✅ Response ready');
-            console.log('✅'.repeat(30));
-            
-            return res.json(data)
-            
-        } catch (blackboardError) {
-            console.error('❌ Blackboard API error:', blackboardError.message);
-            
-            if (blackboardError.response) {
-                console.error('📊 Response status:', blackboardError.response.status);
+            respuestaBlackboard = await axios(opcionesRequest);
+        } catch (apiError) {
+            // Si es error 401, el token podría haber expirado
+            if (apiError.response && apiError.response.status === 401) {
+                console.log('🔄 Token posiblemente expirado, intentando renovar...');
                 
-                if (blackboardError.response.status === 401) {
+                try {
+                    // Forzar renovación y reintentar
+                    tokenBlackboard = await tokenManager.renovarTokenForzado();
+                    
+                    opcionesRequest.headers.Authorization = `Bearer ${tokenBlackboard}`;
+                    respuestaBlackboard = await axios(opcionesRequest);
+                    
+                } catch (retryError) {
+                    console.error('❌ Error después de renovar token:', retryError.message);
                     return res.status(401).json({ 
-                        error: 'Blackboard Authentication Failed',
-                        details: 'Invalid or expired Blackboard token' 
+                        error: 'Error de autenticación con Blackboard',
+                        detalle: 'Credenciales inválidas o expiradas'
                     });
                 }
-                
-                if (blackboardError.response.status === 403) {
-                    return res.status(403).json({ 
-                        error: 'Blackboard Access Denied',
-                        details: 'Insufficient permissions for this course' 
-                    });
-                }
-                
-                if (blackboardError.response.status === 404) {
-                    return res.status(404).json({ 
-                        error: 'Blackboard Resource Not Found',
-                        details: 'Course or content not found' 
-                    });
-                }
+            } else {
+                throw apiError;
             }
-            
-            throw blackboardError;
         }
-
-        // ============================================
-        // CÓDIGO DE PRUEBA (mantener comentado)
-        // ============================================
-        // For testing purposes: Read from a sample file
-        // const filePath = limit === "1"
-        //     ? path.join(__dirname, '../TestFiles/sampleDoc.txt')
-        //     : path.join(__dirname, '../TestFiles/sampleDocs.txt');
-        // fs.readFile(filePath, 'utf8', (err, data) => {
-        //     if (err) {
-        //         return res.status(500).json({ error: 'Failed to read the file.' });
-        //     }
-        //     try {
-        //         const jsonData = JSON.parse(data);
-        //         return res.json(jsonData);
-        //     } catch (parseError) {
-        //         return res.status(500).json({ error: 'Failed to parse the file content.' });
-        //     }
-        // });
-
+        
+        // Formatear datos
+        const datosFormateados = await formatData(
+            respuestaBlackboard.data, 
+            config?.configuration?.lookupFields
+        );
+        
+        // Determinar si hay más contenido disponible
+        const elementosRecibidos = respuestaBlackboard.data?.results?.length || 0;
+        const hayMasContenido = elementosRecibidos >= limite;
+        
+        console.log(`✅ ${elementosRecibidos} elementos procesados, más disponibles: ${hayMasContenido}`);
+        
+        // Retornar respuesta
+        return res.json({
+            ...datosFormateados,
+            isContentAvailable: hayMasContenido
+        });
+        
     } catch (error) {
-        console.error('❌ General error in get_content_controller:', error.message)
+        console.error('❌ Error en el controlador:', error.message);
+        
+        // Manejar errores específicos
+        if (error.response) {
+            const status = error.response.status;
+            const mensajes = {
+                400: 'Solicitud incorrecta a Blackboard',
+                403: 'Acceso denegado al curso',
+                404: 'Recurso no encontrado',
+                429: 'Demasiadas solicitudes',
+                500: 'Error interno de Blackboard',
+                503: 'Blackboard no disponible temporalmente'
+            };
+            
+            return res.status(status).json({ 
+                error: mensajes[status] || `Error ${status} de Blackboard`,
+                detalle: error.response.data?.message || error.message
+            });
+        }
+        
         return res.status(500).json({ 
-            error: "Failed to fetch data from Blackboard",
-            details: error.message 
-        })
-
+            error: 'Error interno del servidor',
+            detalle: error.message
+        });
     }
+};
 
-}
-
-module.exports = { get_content_controller }
+module.exports = { get_content_controller };
