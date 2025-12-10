@@ -8,7 +8,7 @@
   },
   "configuration": {
     "api": {
-      "contentUrl": "https://campusprima-test.blackboard.com/learn/api/public/v1/courses/_304_1/contents",
+      "contentUrl": "https://campusprima-test.blackboard.com/learn/api/public/v1/courses/_304_1/contents?recursive=true",
       "method": "GET"
     },
     "pagination": {
